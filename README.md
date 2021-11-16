@@ -116,3 +116,77 @@ public class UserRepository {
 }
 
 ~~~
+
+
+Hybrid:
+
+
+~~~
+@Configuration
+@EnableCaching
+public class RedisConfig {
+
+    @Bean
+    public RedisTemplate<String, User> userTemplate(LettuceConnectionFactory redisConnectionFactory) {
+        RedisTemplate<String, User> template = new RedisTemplate<>();
+        template.setConnectionFactory(redisConnectionFactory);
+        template.setKeySerializer(new StringRedisSerializer());
+        template.setValueSerializer(new Jackson2JsonRedisSerializer<>(User.class));
+        template.setEnableTransactionSupport(true);
+        template.afterPropertiesSet();
+        return template;
+    }
+}
+
+spring:
+  redis:
+    host: ${REDIS_HOST}
+    password: ${REDIS_PASSWORD}
+    port: ${REDIS_PORT}
+    ssl: true
+  cache:
+    redis:
+      time-to-live: 60s
+
+
+
+
+@Repository
+@Slf4j
+@RequiredArgsConstructor
+public class UserRepositoryImpl implements UserRepository {
+
+    @Value("${spring.cache.redis.time-to-live:PT24H}")
+    private Duration timeToLive;
+
+    private final RedisTemplate<String, User> redisUserTemplate;
+
+    private final DBService dbService;
+
+    public User getUserDetails(String userId) {
+        String key = Constants.USER_HASH_KEY + userId;
+        Optional<User> userOptional = Optional.empty();
+        try {
+            log.info("Trying to get user data from redis cache for id : {} with key : {}", userId, key);
+            userOptional = Optional.ofNullable(redisUserTemplate.opsForValue().get(key));
+        } catch (RuntimeException ex) {
+            log.error("Failed to get data from redis cache : {}", ex.getMessage());
+        }
+        return userOptional.orElseGet(() -> getUserFromDB(userId));
+    }
+
+    private User getUserFromDB(String userId) {
+        String key = Constants.USER_HASH_KEY + userId;
+        log.info("Getting data from DB for id : {}", userId);
+
+        User user = gcssSATService.getUserDetails(userId);
+        try {
+            log.info("Storing user info in redis cache for id : {} with key : {}", userId, key);
+            redisUserTemplate.opsForValue().set(key, user, timeToLive);
+        } catch (RuntimeException exception) {
+            log.error("Failed to store data in cache : {}", exception.getMessage());
+        }
+        return user;
+    }
+}
+~~~
