@@ -84,7 +84,7 @@ public class UserRepository {
         Optional<User> userOptional = Optional.empty();
         try {
             log.info("Trying to get user data from redis cache for id : {} and hashKey: {}", userId, Constants.USER_HASH_KEY);
-            userOptional = Optional.ofNullable((User) redisUserTemplate.opsForHash().get(Constants.USER_HASH_KEY, userId));
+            userOptional = Optional.ofNullable(redisUserTemplate.opsForValue().get(key));
         } catch (RuntimeException ex) {
             log.error("Failed to get data from redis cache");
         }
@@ -96,7 +96,7 @@ public class UserRepository {
         User user = // get from DB
         try {
             log.info("Storing user info in redis cache for id : {} with hashKey : {}", userId, Constants.USER_HASH_KEY);
-            redisUserTemplate.opsForHash().put(Constants.USER_HASH_KEY, userId, user);
+             redisUserTemplate.opsForValue().set(key, user, Duration.ofMinutes(1));  // TTL
         } catch (RuntimeException exception) {
             log.error("Failed to store data in cache");
         }
