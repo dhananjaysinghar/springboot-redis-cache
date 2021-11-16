@@ -4,6 +4,17 @@
 ### Auto config by spring
 
 ~~~
+spring: 
+  redis:
+    host: localhost
+    password: password
+    port: 6379
+  cache:
+    redis:
+      time-to-live: 60s
+      
+      
+      
 @Configuration
 @EnableCaching
 public class RedisConfig {
