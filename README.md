@@ -179,7 +179,7 @@ public class UserRepositoryImpl implements UserRepository {
         String key = Constants.USER_HASH_KEY + userId;
         log.info("Getting data from DB for id : {}", userId);
 
-        User user = gcssSATService.getUserDetails(userId);
+        User user = service.getUserDetails(userId);
         try {
             log.info("Storing user info in redis cache for id : {} with key : {}", userId, key);
             redisUserTemplate.opsForValue().set(key, user, timeToLive);
