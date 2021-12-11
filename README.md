@@ -190,3 +190,78 @@ public class UserRepositoryImpl implements UserRepository {
     }
 }
 ~~~
+
+### Another way
+~~~
+    <dependency>
+        <groupId>org.redisson</groupId>
+        <artifactId>redisson-spring-boot-starter</artifactId>
+        <version>3.16.3</version>
+      </dependency>
+
+    @Bean
+    public ReactiveRedisTemplate<String, UserAccessData> reactiveUserAccessDataTemplate(
+            ReactiveRedisConnectionFactory factory) {
+        Jackson2JsonRedisSerializer<UserAccessData> serializer = new Jackson2JsonRedisSerializer<>(
+                UserAccessData.class);
+        RedisSerializationContext.RedisSerializationContextBuilder<String, UserAccessData> builder = RedisSerializationContext
+                .newSerializationContext(new StringRedisSerializer());
+        RedisSerializationContext<String, UserAccessData> context = builder.value(serializer).build();
+        return new ReactiveRedisTemplate<>(factory, context);
+    }
+   
+~~~
+#### service call
+~~
+@Service
+@Slf4j
+@RequiredArgsConstructor
+public class UserAccessCachingServiceImpl implements UserAccessCachingService {
+
+    private final ReactiveRedisTemplate<String, UserAccessData> redisTemplate;
+
+    @Override
+    public Mono<UserAccessData> getUserAccessData(String userKey) {
+        return redisTemplate.opsForValue().get(userKey)
+                .doOnNext(e -> log.debug("fetched from the cache for {}", userKey))
+                .onErrorResume(ex -> {
+                    log.error("Unable to fetch data from the cache for {}", userKey, ex);
+                    return Mono.empty();
+                });
+    }
+
+    @Override
+    public Mono<UserAccessData> saveUserAccessData(UserAccessData data) {
+        return redisTemplate.opsForValue().set(data.getKey(), data, Duration.ofMinutes(data.getTtl()))
+                .doOnNext(e -> log.debug("Cache : UserAccessData saved in cache for {}", data.getData()))
+                .onErrorResume(ex -> {
+                    log.error("Error has occurred while setting the cache value for {}", data.getData(), ex);
+                    return Mono.just(false);
+                }).thenReturn(data);
+    }
+}
+
+
+@Getter
+@Setter
+@Builder
+@AllArgsConstructor
+@NoArgsConstructor
+public class UserAccessData {
+
+	@NotNull(message = "key value should be not null")
+	@NotEmpty(message = "key value should be not empty")
+	private String key;
+
+	@Min(value = 1, message = "ttl value should not less than 1")
+	private int ttl;
+
+	@NotNull(message = "data value should be not null")
+	private Object data;
+}
+
+~~~
+
+
+
+
