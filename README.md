@@ -212,7 +212,9 @@ public class UserRepositoryImpl implements UserRepository {
    
 ~~~
 #### service call
+
 ~~
+
 @Service
 @Slf4j
 @RequiredArgsConstructor
